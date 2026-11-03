@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WC Voice Draft — Setup</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2340;--ink-2:#4A5576;--blue:#2040AA;--paper:#F6F8FC;--card:#fff;--line:#D9E0EC;--err:#B4232F;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--ink:#E8ECF7;--ink-2:#A4AEC9;--blue:#7C9BFF;--paper:#12172A;--card:#1A2138;--line:#2C3656;--err:#FF7A85;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:48px 20px 64px}
+h1{font-size:30px;line-height:1.2;margin:0 0 8px;font-weight:600;letter-spacing:-.02em}
+.lead{color:var(--ink-2);margin:0 0 32px}
+ol{padding-left:22px;margin:0}
+li{margin-bottom:18px}
+li b{font-weight:600}
+.dl{display:inline-block;margin-top:8px;border:0;border-radius:10px;background:var(--blue);color:#fff;font:inherit;font-weight:500;padding:11px 18px;cursor:pointer}
+code{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:14px}
+.warn{color:var(--err);font-size:14px;margin-top:8px;display:none}
+.small{color:var(--ink-2);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+  <h1>WC Voice Draft</h1>
+  <p class="lead">Speak in Outlook, and ChatGPT writes the mail for you as a draft. This page gives you the file to add it to Outlook.</p>
+  <ol>
+    <li><b>Download the Outlook file.</b> It is made for this website address: <code id="origin"></code><br>
+      <button class="dl" id="dl">Download manifest.xml</button>
+      <div class="warn" id="warn">Open this page from your hosted https:// address (Vercel or Netlify), not from your computer.</div></li>
+    <li><b>Add it to Outlook.</b> Open <code>outlook.office.com</code> → open any mail → <b>Apps</b> (or ⋯ → Get Add-ins) → <b>My add-ins</b> → <b>Add a custom add-in → Add from file</b> → choose <code>manifest.xml</code>.</li>
+    <li><b>Add your OpenAI key.</b> Open any mail → click <b>Voice Draft</b> → ⚙ → paste the API key, your name and signature → Save.</li>
+    <li><b>Use it.</b> In a new mail, reply, or any received mail, click <b>Voice Draft</b>, tap the capsule, speak, tap again. The draft appears. Check it and press Send.</li>
+  </ol>
+  <p class="small">The add-in shows up in Outlook on the web, new Outlook for Windows and classic Outlook (same account) after a few minutes.</p>
+</main>
+<script>
+const base = location.origin;
+document.getElementById('origin').textContent = base;
+if (!/^https:/.test(location.protocol)) document.getElementById('warn').style.display = 'block';
+document.getElementById('dl').onclick = async () => {
+  try {
+    const t = await (await fetch('manifest.template.xml', { cache: 'no-store' })).text();
+    const xml = t.split('__BASE__').join(base);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml' }));
+    a.download = 'manifest.xml'; document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) {
+    alert('Could not build the file. Make sure manifest.template.xml was uploaded with the other files.');
+  }
+};
+</script>
+</body>
+</html>

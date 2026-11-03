@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WC Voice Draft</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1B2340; --ink-2:#4A5576; --blue:#2040AA; --blue-soft:#E6ECFB;
+  --paper:#F6F8FC; --card:#FFFFFF; --line:#D9E0EC; --rec:#D23A3A; --ok:#1E8358; --err:#B4232F;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --ink:#E8ECF7; --ink-2:#A4AEC9; --blue:#7C9BFF; --blue-soft:#1F2A4D;
+    --paper:#12172A; --card:#1A2138; --line:#2C3656; --rec:#FF6B6B; --ok:#4CC38A; --err:#FF7A85; color-scheme: dark; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
+.wrap{padding:14px 14px 24px;max-width:460px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+h1{font-size:17px;font-weight:600;margin:0;letter-spacing:-.01em}
+.icon-btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:16px}
+.context{font-size:13px;color:var(--ink-2);border-left:3px solid var(--blue);padding:2px 0 2px 10px;margin-bottom:14px;word-break:break-word}
+.context b{color:var(--ink);font-weight:500}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:transparent;color:var(--ink-2);padding:6px 11px;font:inherit;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.lbl{font-size:12px;color:var(--ink-2);margin:0 0 4px}
+
+/* Capsule mic button */
+.capsule-zone{display:flex;flex-direction:column;align-items:center;margin:18px 0 6px}
+.capsule{position:relative;display:flex;width:220px;height:76px;border-radius:38px;border:0;padding:0;cursor:pointer;
+  overflow:visible;background:none;box-shadow:0 6px 18px rgba(32,64,170,.18)}
+.capsule .half{flex:1;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.capsule .l{background:var(--blue);border-radius:38px 0 0 38px;color:#fff}
+.capsule .r{background:var(--card);border:1px solid var(--line);border-left:0;border-radius:0 38px 38px 0;color:var(--ink);font-weight:500;font-size:14px}
+.capsule .seam{position:absolute;left:50%;top:6px;bottom:6px;width:2px;margin-left:-1px;background:rgba(255,255,255,.35)}
+.capsule.recording .l{background:var(--rec)}
+.capsule.recording::after{content:"";position:absolute;inset:-6px;border-radius:44px;border:2px solid var(--rec);animation:pulse 1.4s ease-out infinite}
+.capsule.busy{opacity:.6;cursor:progress}
+@keyframes pulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
+@media (prefers-reduced-motion: reduce){.capsule.recording::after{animation:none}}
+.capsule:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.timer{font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink-2);height:20px;margin-top:8px}
+
+.status{min-height:20px;font-size:13px;margin:6px 0 12px;text-align:center}
+.status.ok{color:var(--ok)} .status.err{color:var(--err)} .status.work{color:var(--ink-2)}
+
+textarea,input,select{width:100%;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{min-height:78px;resize:vertical}
+.primary{width:100%;margin-top:8px;border:0;border-radius:8px;background:var(--blue);color:#fff;font:inherit;font-weight:500;padding:9px;cursor:pointer}
+.primary:disabled{opacity:.5;cursor:not-allowed}
+.preview{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;display:none}
+.preview .sub{font-weight:600;margin-bottom:6px}
+.preview .body p{margin:0 0 8px}
+
+/* Settings drawer */
+#settings{position:fixed;inset:0;background:var(--paper);padding:14px;overflow:auto;display:none;z-index:5}
+#settings.open{display:block}
+.field{margin-bottom:12px}
+.field small{display:block;color:var(--ink-2);font-size:12px;margin-top:3px}
+.btns{display:flex;gap:8px}
+.ghost{flex:1;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:9px;font:inherit;cursor:pointer}
+.btns .primary{flex:1;margin-top:0}
+.note{font-size:12px;color:var(--ink-2);margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>WC Voice Draft</h1>
+    <button class="icon-btn" id="openSettings" title="Settings" aria-label="Settings">⚙</button>
+  </header>
+
+  <div class="context" id="context">Loading…</div>
+
+  <p class="lbl">Tone</p>
+  <div class="row"><div class="seg" id="toneSeg">
+    <button aria-pressed="true" data-v="Formal">Formal</button>
+    <button aria-pressed="false" data-v="Friendly">Friendly</button>
+    <button aria-pressed="false" data-v="Short and to the point">Short</button>
+  </div></div>
+
+  <div id="replyRow" style="display:none">
+    <p class="lbl">Reply to</p>
+    <div class="row"><div class="seg" id="replySeg">
+      <button aria-pressed="true" data-v="one">Sender only</button>
+      <button aria-pressed="false" data-v="all">Reply all</button>
+    </div></div>
+  </div>
+
+  <div class="capsule-zone">
+    <button class="capsule" id="mic" aria-label="Start speaking">
+      <span class="half l" id="micIcon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg>
+      </span>
+      <span class="half r" id="micText">Tap to speak</span>
+      <span class="seam"></span>
+    </button>
+    <div class="timer" id="timer"></div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <p class="lbl">What should the mail say? (your words appear here — you can also type)</p>
+  <textarea id="instr" placeholder="e.g. Ramesh ko bolo COA kal tak bhej de, batch 2410 ka"></textarea>
+  <button class="primary" id="makeBtn">Make draft</button>
+
+  <div class="preview" id="preview">
+    <div class="sub" id="pvSub"></div>
+    <div class="body" id="pvBody"></div>
+  </div>
+</div>
+
+<div id="settings" role="dialog" aria-label="Settings">
+  <header><h1>Settings</h1></header>
+  <div class="field"><label class="lbl" for="sKey">OpenAI API key</label>
+    <input id="sKey" type="password" placeholder="sk-..." autocomplete="off">
+    <small>Saved in your Outlook mailbox settings. Get it from platform.openai.com → API keys.</small></div>
+  <div class="field"><label class="lbl" for="sModel">ChatGPT model</label>
+    <input id="sModel" list="models"><datalist id="models">
+      <option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"><option value="gpt-4.1"></datalist>
+    <small>gpt-4o-mini is cheap and good for mails. gpt-4o writes better.</small></div>
+  <div class="field"><label class="lbl" for="sStt">Voice-to-text model</label>
+    <select id="sStt"><option value="whisper-1">whisper-1</option><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option></select></div>
+  <div class="field"><label class="lbl" for="sLang">Write mail in</label>
+    <select id="sLang"><option>English</option><option>Hindi</option><option>Gujarati</option></select></div>
+  <div class="field"><label class="lbl" for="sName">Your name</label><input id="sName" placeholder="e.g. Bhargav Patel"></div>
+  <div class="field"><label class="lbl" for="sCompany">Company</label><input id="sCompany"></div>
+  <div class="field"><label class="lbl" for="sSig">Signature (added after the closing line)</label>
+    <textarea id="sSig" placeholder="Bhargav Patel&#10;Manager – IT&#10;West-Coast Pharmaceutical Works Ltd.&#10;+91 ..."></textarea>
+    <small>Leave empty if Outlook already adds your signature — then only your name is added.</small></div>
+  <div class="btns"><button class="ghost" id="cancelS">Cancel</button><button class="primary" id="saveS">Save</button></div>
+  <p class="note">Your voice and mail text go only to OpenAI to write the draft. Nothing is sent automatically — you always review and press Send yourself.</p>
+</div>
+
+<script>
+const KEY = 'wcvd_settings_v1';
+const S = { apiKey:'', model:'gpt-4o-mini', stt:'whisper-1', lang:'English', name:'', company:'West-Coast Pharmaceutical Works Ltd.', sig:'' };
+let item = null, isCompose = false, tone = 'Formal', replyAll = false;
+let recorder = null, stream = null, chunks = [], t0 = 0, tick = null, busy = false;
+const $ = id => document.getElementById(id);
+
+/* ---------- settings ---------- */
+function loadSettings(){
+  let saved = null;
+  try { if (window.Office && Office.context && Office.context.roamingSettings) saved = Office.context.roamingSettings.get(KEY); } catch(e){}
+  if (!saved) { try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){} }
+  if (saved) Object.assign(S, saved);
+}
+function saveSettings(){
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+  return new Promise(res => {
+    try {
+      const rs = Office.context.roamingSettings; rs.set(KEY, S); rs.saveAsync(() => res());
+    } catch(e){ res(); }
+  });
+}
+function openSettings(){
+  $('sKey').value=S.apiKey; $('sModel').value=S.model; $('sStt').value=S.stt; $('sLang').value=S.lang;
+  $('sName').value=S.name; $('sCompany').value=S.company; $('sSig').value=S.sig;
+  $('settings').classList.add('open'); $('sKey').focus();
+}
+$('openSettings').onclick = openSettings;
+$('cancelS').onclick = () => $('settings').classList.remove('open');
+$('saveS').onclick = async () => {
+  S.apiKey=$('sKey').value.trim(); S.model=$('sModel').value.trim()||'gpt-4o-mini'; S.stt=$('sStt').value;
+  S.lang=$('sLang').value; S.name=$('sName').value.trim(); S.company=$('sCompany').value.trim(); S.sig=$('sSig').value.trim();
+  await saveSettings(); $('settings').classList.remove('open'); setStatus('Settings saved.','ok');
+};
+
+/* ---------- UI helpers ---------- */
+function setStatus(msg, kind='work'){ const el=$('status'); el.textContent=msg; el.className='status '+kind; }
+function segInit(id, cb){
+  $(id).querySelectorAll('button').forEach(b => b.onclick = () => {
+    $(id).querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x===b));
+    cb(b.dataset.v);
+  });
+}
+segInit('toneSeg', v => tone = v);
+segInit('replySeg', v => replyAll = v === 'all');
+function setBusy(b){ busy=b; $('mic').classList.toggle('busy', b); $('makeBtn').disabled=b; }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- Outlook helpers ---------- */
+const asyncP = (fn) => new Promise((res, rej) => fn(r => r.status === 'succeeded' ? res(r.value) : rej(r.error)));
+async function getBodyText(){ try { return await asyncP(cb => item.body.getAsync(Office.CoercionType.Text, cb)); } catch(e){ return ''; } }
+async function getSubject(){
+  if (!isCompose) return item.subject || '';
+  try { return await asyncP(cb => item.subject.getAsync(cb)); } catch(e){ return ''; }
+}
+function senderName(){ try { return item.from ? (item.from.displayName || item.from.emailAddress) : ''; } catch(e){ return ''; } }
+
+async function describeContext(){
+  if (!item) { $('context').innerHTML = 'Open this from Outlook — inside a mail or a new mail window.'; return; }
+  const sub = await getSubject();
+  if (isCompose) {
+    $('context').innerHTML = sub ? `Writing: <b>${esc(sub)}</b><br>The draft will be added to this mail.` : `New mail<br>The draft will be added to this mail.`;
+  } else {
+    $('replyRow').style.display = 'block';
+    $('context').innerHTML = `Reply to <b>${esc(senderName())}</b> — “${esc(sub)}”<br>A reply draft will open with your text.`;
+  }
+}
+
+/* ---------- recording ---------- */
+$('mic').onclick = () => { if (busy) return; recorder && recorder.state === 'recording' ? stopRec() : startRec(); };
+
+async function startRec(){
+  if (!item) return setStatus('Open this from inside Outlook.', 'err');
+  if (!S.apiKey) { setStatus('Add your OpenAI API key first.', 'err'); return openSettings(); }
+  try {
+    if (window.Office && Office.devicePermission && Office.DevicePermissionType) {
+      try { await Office.devicePermission.requestPermissionsAsync([Office.DevicePermissionType.microphone]); } catch(e){}
+    }
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    return setStatus('Microphone blocked. Allow mic for Outlook, or type below and press Make draft.', 'err');
+  }
+  const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+  recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  chunks = [];
+  recorder.ondataavailable = e => e.data.size && chunks.push(e.data);
+  recorder.onstop = onRecStop;
+  recorder.start();
+  t0 = Date.now();
+  $('mic').classList.add('recording'); $('micText').textContent = 'Tap to stop'; $('mic').setAttribute('aria-label','Stop speaking');
+  setStatus('Listening… speak in Hindi, Gujarati or English.');
+  tick = setInterval(() => {
+    const s = Math.floor((Date.now()-t0)/1000);
+    $('timer').textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    if (s >= 180) stopRec();
+  }, 250);
+}
+function stopRec(){
+  clearInterval(tick);
+  if (recorder && recorder.state === 'recording') recorder.stop();
+  stream && stream.getTracks().forEach(t => t.stop());
+  $('mic').classList.remove('recording'); $('micText').textContent = 'Tap to speak'; $('mic').setAttribute('aria-label','Start speaking');
+}
+async function onRecStop(){
+  $('timer').textContent = '';
+  if (Date.now() - t0 < 800 || !chunks.length) return setStatus('Too short — tap and speak again.', 'err');
+  const type = recorder.mimeType || 'audio/webm';
+  const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+  const blob = new Blob(chunks, { type });
+  setBusy(true);
+  try {
+    setStatus('Converting your voice to text…');
+    const text = await transcribe(blob, ext);
+    if (!text.trim()) throw new Error('No speech heard. Try again closer to the mic.');
+    $('instr').value = text.trim();
+    await makeDraft();
+  } catch(e) { setStatus(e.message || String(e), 'err'); }
+  finally { setBusy(false); }
+}
+
+/* ---------- OpenAI ---------- */
+async function apiErr(r){
+  let m = ''; try { const j = await r.json(); m = j.error && j.error.message || ''; } catch(e){}
+  if (r.status === 401) return new Error('OpenAI API key is wrong. Fix it in Settings (⚙).');
+  if (r.status === 429) return new Error(/quota|billing/i.test(m) ? 'OpenAI credit is over. Add credit at platform.openai.com → Billing.' : 'Too many requests. Wait a few seconds and try again.');
+  if (r.status === 404) return new Error('Model not found. Check the model name in Settings.');
+  return new Error('OpenAI error ' + r.status + (m ? ': ' + m : ''));
+}
+async function transcribe(blob, ext){
+  const fd = new FormData();
+  fd.append('file', blob, 'voice.' + ext);
+  fd.append('model', S.stt);
+  const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method:'POST', headers:{ Authorization:'Bearer '+S.apiKey }, body: fd });
+  if (!r.ok) throw await apiErr(r);
+  return (await r.json()).text || '';
+}
+
+$('makeBtn').onclick = async () => {
+  if (busy) return;
+  if (!item) return setStatus('Open this from inside Outlook.', 'err');
+  if (!S.apiKey) { setStatus('Add your OpenAI API key first.', 'err'); return openSettings(); }
+  if (!$('instr').value.trim()) return setStatus('Speak or type what the mail should say.', 'err');
+  setBusy(true);
+  try { await makeDraft(); } catch(e){ setStatus(e.message || String(e), 'err'); } finally { setBusy(false); }
+};
+
+async function makeDraft(){
+  setStatus('ChatGPT is writing the mail…');
+  const instruction = $('instr').value.trim();
+  const subject = await getSubject();
+  let original = (await getBodyText()).replace(/\n{3,}/g, '\n\n').trim().slice(0, 6000);
+  const replying = !isCompose || /^(re|fw|fwd)\s*:/i.test(subject) || original.length > 40;
+
+  const sys = [
+    `You write Outlook emails on behalf of ${S.name || 'the sender'}${S.company ? ' at ' + S.company : ''}.`,
+    `The user's instruction may be spoken in Hindi, Gujarati, English or a mix (Hinglish). Understand it fully.`,
+    `Write the email in ${S.lang}. Tone: ${tone}.`,
+    replying ? `This is a reply. Use the original email for context, address its points, and greet the right person.` : `This is a new email.`,
+    `Use only facts from the instruction or original email. If a needed detail (date, quantity, name, batch no.) is missing, put a short placeholder in square brackets like [date].`,
+    `Do not write a signature, name, or anything after the closing line. End with a closing such as "Best regards," only.`,
+    `body_html: simple HTML using only <p>, <br>, <b>, <ul>, <ol>, <li>. No <html>, <head>, styles or scripts.`,
+    `Reply with JSON only: {"subject": "...", "body_html": "..."}`
+  ].join('\n');
+  const user = `Instruction: ${instruction}\n\nCurrent subject: ${subject || '(none)'}\n\n` +
+               (original ? `Original email / thread:\n${original}` : 'Original email: (none)') +
+               (!isCompose ? `\n\nSender of original: ${senderName()}` : '');
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+S.apiKey },
+    body: JSON.stringify({ model:S.model, response_format:{ type:'json_object' },
+      messages:[{ role:'system', content:sys }, { role:'user', content:user }] })
+  });
+  if (!r.ok) throw await apiErr(r);
+  const j = await r.json();
+  let out;
+  try { out = JSON.parse(j.choices[0].message.content.replace(/```json|```/g,'').trim()); }
+  catch(e){ throw new Error('ChatGPT returned an unreadable answer. Press Make draft again.'); }
+
+  const html = clean(out.body_html || '') + signatureHtml();
+  showPreview(out.subject || subject, html);
+  await insert(out.subject || '', html, subject);
+}
+
+function clean(h){
+  return String(h).replace(/<\s*(script|style|head)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi,'')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,'')
+    .replace(/<\/?(html|body)[^>]*>/gi,'').trim();
+}
+function signatureHtml(){
+  if (S.sig) return '<p>' + esc(S.sig).replace(/\n/g,'<br>') + '</p>';
+  if (S.name) return '<p>' + esc(S.name) + '</p>';
+  return '';
+}
+function showPreview(sub, html){
+  $('pvSub').textContent = sub; $('pvBody').innerHTML = html; $('preview').style.display = 'block';
+}
+
+async function insert(newSub, html, curSub){
+  if (isCompose) {
+    if (!curSub.trim() && newSub) { try { await asyncP(cb => item.subject.setAsync(newSub, cb)); } catch(e){} }
+    const bodyNow = (await getBodyText()).trim();
+    if (!bodyNow) await asyncP(cb => item.body.setAsync(html, { coercionType: Office.CoercionType.Html }, cb));
+    else await asyncP(cb => item.body.prependAsync(html + '<br>', { coercionType: Office.CoercionType.Html }, cb));
+    setStatus(bodyNow ? 'Draft added at the top of the mail. Delete any older version below, then Send.' : 'Draft added to your mail. Check it and press Send.', 'ok');
+  } else {
+    replyAll ? item.displayReplyAllForm(html) : item.displayReplyForm(html);
+    setStatus('Reply draft opened. Check it and press Send.', 'ok');
+  }
+}
+
+/* ---------- start ---------- */
+Office.onReady(info => {
+  if (info.host === Office.HostType.Outlook && Office.context.mailbox && Office.context.mailbox.item) {
+    item = Office.context.mailbox.item;
+    isCompose = typeof item.body.setAsync === 'function';
+  }
+  loadSettings();
+  describeContext();
+  if (item && !S.apiKey) { setStatus('First time? Add your OpenAI API key in Settings.', 'work'); }
+});
+</script>
+</body>
+</html>

@@ -45,6 +45,7 @@ h1{font-size:17px;font-weight:600;margin:0;letter-spacing:-.01em}
 @keyframes pulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
 @media (prefers-reduced-motion: reduce){.capsule.recording::after{animation:none}}
 .capsule:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.linkbtn{border:0;background:none;color:var(--blue);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:2px}
 .timer{font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink-2);height:20px;margin-top:8px}
 
 .status{min-height:20px;font-size:13px;margin:6px 0 12px;text-align:center}
@@ -102,6 +103,7 @@ textarea{min-height:78px;resize:vertical}
       <span class="seam"></span>
     </button>
     <div class="timer" id="timer"></div>
+    <button class="linkbtn" id="popupRec" type="button">Mic not working? Record in a pop-up window</button>
   </div>
 
   <div class="status" id="status" role="status" aria-live="polite"></div>
@@ -118,15 +120,17 @@ textarea{min-height:78px;resize:vertical}
 
 <div id="settings" role="dialog" aria-label="Settings">
   <header><h1>Settings</h1></header>
-  <div class="field"><label class="lbl" for="sKey">OpenAI API key</label>
-    <input id="sKey" type="password" placeholder="sk-..." autocomplete="off">
-    <small>Saved in your Outlook mailbox settings. Get it from platform.openai.com → API keys.</small></div>
-  <div class="field"><label class="lbl" for="sModel">ChatGPT model</label>
-    <input id="sModel" list="models"><datalist id="models">
-      <option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"><option value="gpt-4.1"></datalist>
-    <small>gpt-4o-mini is cheap and good for mails. gpt-4o writes better.</small></div>
+  <div class="field"><label class="lbl" for="sProv">AI service</label>
+    <select id="sProv"><option value="groq">Groq (free)</option><option value="openai">OpenAI / ChatGPT (paid)</option></select>
+    <small id="provHelp"></small></div>
+  <div class="field"><label class="lbl" for="sKey">API key</label>
+    <input id="sKey" type="password" placeholder="gsk_... or sk-..." autocomplete="off">
+    <small>Saved in your Outlook mailbox settings.</small></div>
+  <div class="field"><label class="lbl" for="sModel">Writing model</label>
+    <input id="sModel" list="models"><datalist id="models"></datalist>
+    <small id="modelHelp"></small></div>
   <div class="field"><label class="lbl" for="sStt">Voice-to-text model</label>
-    <select id="sStt"><option value="whisper-1">whisper-1</option><option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe</option><option value="gpt-4o-transcribe">gpt-4o-transcribe</option></select></div>
+    <select id="sStt"></select></div>
   <div class="field"><label class="lbl" for="sLang">Write mail in</label>
     <select id="sLang"><option>English</option><option>Hindi</option><option>Gujarati</option></select></div>
   <div class="field"><label class="lbl" for="sName">Your name</label><input id="sName" placeholder="e.g. Bhargav Patel"></div>
@@ -135,12 +139,33 @@ textarea{min-height:78px;resize:vertical}
     <textarea id="sSig" placeholder="Bhargav Patel&#10;Manager – IT&#10;West-Coast Pharmaceutical Works Ltd.&#10;+91 ..."></textarea>
     <small>Leave empty if Outlook already adds your signature — then only your name is added.</small></div>
   <div class="btns"><button class="ghost" id="cancelS">Cancel</button><button class="primary" id="saveS">Save</button></div>
-  <p class="note">Your voice and mail text go only to OpenAI to write the draft. Nothing is sent automatically — you always review and press Send yourself.</p>
+  <p class="note">Your voice and mail text go only to the AI service you chose, to write the draft. Nothing is sent automatically — you always review and press Send yourself.</p>
 </div>
 
 <script>
 const KEY = 'wcvd_settings_v1';
-const S = { apiKey:'', model:'gpt-4o-mini', stt:'whisper-1', lang:'English', name:'', company:'West-Coast Pharmaceutical Works Ltd.', sig:'' };
+const PROV = {
+  groq:   { base:'https://api.groq.com/openai/v1', model:'llama-3.3-70b-versatile',
+            models:['llama-3.3-70b-versatile','openai/gpt-oss-120b','openai/gpt-oss-20b'],
+            stt:[['whisper-large-v3','whisper-large-v3 (best for Hindi/Gujarati)'],['whisper-large-v3-turbo','whisper-large-v3-turbo (faster)']],
+            help:'Free. Get a key at console.groq.com → API Keys (starts with gsk_).',
+            mhelp:'llama-3.3-70b-versatile is good for mails. Try openai/gpt-oss-120b for better writing.' },
+  openai: { base:'https://api.openai.com/v1', model:'gpt-4o-mini',
+            models:['gpt-4o-mini','gpt-4o','gpt-4.1-mini','gpt-4.1'],
+            stt:[['whisper-1','whisper-1'],['gpt-4o-mini-transcribe','gpt-4o-mini-transcribe'],['gpt-4o-transcribe','gpt-4o-transcribe']],
+            help:'Paid. Get a key at platform.openai.com → API keys (starts with sk-). Needs billing credit.',
+            mhelp:'gpt-4o-mini is cheap and good for mails. gpt-4o writes better.' }
+};
+const S = { prov:'groq', apiKey:'', model:'llama-3.3-70b-versatile', stt:'whisper-large-v3', lang:'English', name:'', company:'West-Coast Pharmaceutical Works Ltd.', sig:'' };
+const P = () => PROV[S.prov] || PROV.groq;
+function fixModels(){
+  if (S.apiKey.startsWith('gsk_')) S.prov = 'groq';
+  else if (S.apiKey.startsWith('sk-')) S.prov = 'openai';
+  const p = P();
+  const otherModels = Object.values(PROV).filter(x => x !== p).flatMap(x => x.models);
+  if (!S.model || otherModels.includes(S.model)) S.model = p.model;
+  if (!p.stt.some(o => o[0] === S.stt)) S.stt = p.stt[0][0];
+}
 let item = null, isCompose = false, tone = 'Formal', replyAll = false;
 let recorder = null, stream = null, chunks = [], t0 = 0, tick = null, busy = false;
 const $ = id => document.getElementById(id);
@@ -151,6 +176,8 @@ function loadSettings(){
   try { if (window.Office && Office.context && Office.context.roamingSettings) saved = Office.context.roamingSettings.get(KEY); } catch(e){}
   if (!saved) { try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch(e){} }
   if (saved) Object.assign(S, saved);
+  if (saved && !saved.prov) S.prov = (saved.apiKey || '').startsWith('sk-') ? 'openai' : 'groq';
+  fixModels();
 }
 function saveSettings(){
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
@@ -160,7 +187,16 @@ function saveSettings(){
     } catch(e){ res(); }
   });
 }
+function fillProv(prov, keepModel){
+  const p = PROV[prov];
+  $('provHelp').textContent = p.help; $('modelHelp').textContent = p.mhelp;
+  $('models').innerHTML = p.models.map(m => `<option value="${m}">`).join('');
+  $('sStt').innerHTML = p.stt.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('');
+  if (!keepModel) { $('sModel').value = p.model; }
+}
+$('sProv').onchange = () => fillProv($('sProv').value, false);
 function openSettings(){
+  $('sProv').value=S.prov; fillProv(S.prov, true);
   $('sKey').value=S.apiKey; $('sModel').value=S.model; $('sStt').value=S.stt; $('sLang').value=S.lang;
   $('sName').value=S.name; $('sCompany').value=S.company; $('sSig').value=S.sig;
   $('settings').classList.add('open'); $('sKey').focus();
@@ -168,7 +204,8 @@ function openSettings(){
 $('openSettings').onclick = openSettings;
 $('cancelS').onclick = () => $('settings').classList.remove('open');
 $('saveS').onclick = async () => {
-  S.apiKey=$('sKey').value.trim(); S.model=$('sModel').value.trim()||'gpt-4o-mini'; S.stt=$('sStt').value;
+  S.prov=$('sProv').value; S.apiKey=$('sKey').value.trim(); S.model=$('sModel').value.trim(); S.stt=$('sStt').value;
+  fixModels();
   S.lang=$('sLang').value; S.name=$('sName').value.trim(); S.company=$('sCompany').value.trim(); S.sig=$('sSig').value.trim();
   await saveSettings(); $('settings').classList.remove('open'); setStatus('Settings saved.','ok');
 };
@@ -211,14 +248,15 @@ $('mic').onclick = () => { if (busy) return; recorder && recorder.state === 'rec
 
 async function startRec(){
   if (!item) return setStatus('Open this from inside Outlook.', 'err');
-  if (!S.apiKey) { setStatus('Add your OpenAI API key first.', 'err'); return openSettings(); }
+  if (!S.apiKey) { setStatus('Add your API key first (⚙ Settings).', 'err'); return openSettings(); }
   try {
     if (window.Office && Office.devicePermission && Office.DevicePermissionType) {
       try { await Office.devicePermission.requestPermissionsAsync([Office.DevicePermissionType.microphone]); } catch(e){}
     }
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch(e) {
-    return setStatus('Microphone blocked. Allow mic for Outlook, or type below and press Make draft.', 'err');
+    setStatus('Mic is blocked inside Outlook — opening the pop-up recorder…', 'work');
+    return openRecorder();
   }
   const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
   recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -258,19 +296,48 @@ async function onRecStop(){
   finally { setBusy(false); }
 }
 
-/* ---------- OpenAI ---------- */
+/* ---------- pop-up recorder (works when Outlook blocks the mic) ---------- */
+$('popupRec').onclick = () => {
+  if (busy) return;
+  if (!item) return setStatus('Open this from inside Outlook.', 'err');
+  if (!S.apiKey) { setStatus('Add your API key first (⚙ Settings).', 'err'); return openSettings(); }
+  openRecorder();
+};
+function openRecorder(){
+  const q = new URLSearchParams({ k:S.apiKey, b:P().base, m:S.stt }).toString();
+  const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'record.html#' + q;
+  Office.context.ui.displayDialogAsync(url, { height:42, width:28 }, res => {
+    if (res.status !== Office.AsyncResultStatus.Succeeded) {
+      return setStatus('Pop-up could not open (' + res.error.message + '). Allow pop-ups for Outlook, or type below.', 'err');
+    }
+    const dlg = res.value;
+    setStatus('Speak in the pop-up window…');
+    dlg.addEventHandler(Office.EventType.DialogMessageReceived, async arg => {
+      dlg.close();
+      let m = {}; try { m = JSON.parse(arg.message); } catch(e){}
+      if (m.error) return setStatus(m.error, 'err');
+      if (!m.text) return setStatus('No speech heard. Try again.', 'err');
+      $('instr').value = m.text.trim();
+      setBusy(true);
+      try { await makeDraft(); } catch(e){ setStatus(e.message || String(e), 'err'); } finally { setBusy(false); }
+    });
+    dlg.addEventHandler(Office.EventType.DialogEventReceived, () => { if (!busy) setStatus('Pop-up closed.', 'work'); });
+  });
+}
+
+/* ---------- AI service ---------- */
 async function apiErr(r){
   let m = ''; try { const j = await r.json(); m = j.error && j.error.message || ''; } catch(e){}
-  if (r.status === 401) return new Error('OpenAI API key is wrong. Fix it in Settings (⚙).');
-  if (r.status === 429) return new Error(/quota|billing/i.test(m) ? 'OpenAI credit is over. Add credit at platform.openai.com → Billing.' : 'Too many requests. Wait a few seconds and try again.');
+  if (r.status === 401) return new Error('API key is wrong. Check the AI service and key in Settings (⚙).');
+  if (r.status === 429) return new Error(/quota|billing/i.test(m) ? 'API credit is over. Add credit, or switch to Groq (free) in Settings.' : 'Free limit reached for now. Wait a minute and try again.');
   if (r.status === 404) return new Error('Model not found. Check the model name in Settings.');
-  return new Error('OpenAI error ' + r.status + (m ? ': ' + m : ''));
+  return new Error('AI service error ' + r.status + (m ? ': ' + m : ''));
 }
 async function transcribe(blob, ext){
   const fd = new FormData();
   fd.append('file', blob, 'voice.' + ext);
   fd.append('model', S.stt);
-  const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method:'POST', headers:{ Authorization:'Bearer '+S.apiKey }, body: fd });
+  const r = await fetch(P().base + '/audio/transcriptions', { method:'POST', headers:{ Authorization:'Bearer '+S.apiKey }, body: fd });
   if (!r.ok) throw await apiErr(r);
   return (await r.json()).text || '';
 }
@@ -278,14 +345,14 @@ async function transcribe(blob, ext){
 $('makeBtn').onclick = async () => {
   if (busy) return;
   if (!item) return setStatus('Open this from inside Outlook.', 'err');
-  if (!S.apiKey) { setStatus('Add your OpenAI API key first.', 'err'); return openSettings(); }
+  if (!S.apiKey) { setStatus('Add your API key first (⚙ Settings).', 'err'); return openSettings(); }
   if (!$('instr').value.trim()) return setStatus('Speak or type what the mail should say.', 'err');
   setBusy(true);
   try { await makeDraft(); } catch(e){ setStatus(e.message || String(e), 'err'); } finally { setBusy(false); }
 };
 
 async function makeDraft(){
-  setStatus('ChatGPT is writing the mail…');
+  setStatus('AI is writing the mail…');
   const instruction = $('instr').value.trim();
   const subject = await getSubject();
   let original = (await getBodyText()).replace(/\n{3,}/g, '\n\n').trim().slice(0, 6000);
@@ -305,7 +372,7 @@ async function makeDraft(){
                (original ? `Original email / thread:\n${original}` : 'Original email: (none)') +
                (!isCompose ? `\n\nSender of original: ${senderName()}` : '');
 
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+  const r = await fetch(P().base + '/chat/completions', {
     method:'POST',
     headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+S.apiKey },
     body: JSON.stringify({ model:S.model, response_format:{ type:'json_object' },
@@ -315,7 +382,7 @@ async function makeDraft(){
   const j = await r.json();
   let out;
   try { out = JSON.parse(j.choices[0].message.content.replace(/```json|```/g,'').trim()); }
-  catch(e){ throw new Error('ChatGPT returned an unreadable answer. Press Make draft again.'); }
+  catch(e){ throw new Error('The AI returned an unreadable answer. Press Make draft again.'); }
 
   const html = clean(out.body_html || '') + signatureHtml();
   showPreview(out.subject || subject, html);
@@ -357,7 +424,7 @@ Office.onReady(info => {
   }
   loadSettings();
   describeContext();
-  if (item && !S.apiKey) { setStatus('First time? Add your OpenAI API key in Settings.', 'work'); }
+  if (item && !S.apiKey) { setStatus('First time? Open ⚙ Settings and add your free Groq API key.', 'work'); }
 });
 </script>
 </body>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WC Voice Draft — Recorder</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2340;--ink-2:#4A5576;--blue:#2040AA;--paper:#F6F8FC;--card:#fff;--line:#D9E0EC;--rec:#D23A3A;--err:#B4232F;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--ink:#E8ECF7;--ink-2:#A4AEC9;--blue:#7C9BFF;--paper:#12172A;--card:#1A2138;--line:#2C3656;--rec:#FF6B6B;--err:#FF7A85;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.5 "IBM Plex Sans","Segoe UI",system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center}
+h1{font-size:16px;font-weight:600;margin:0 0 18px}
+.capsule{position:relative;display:flex;width:220px;height:76px;border-radius:38px;border:0;padding:0;cursor:pointer;background:none;box-shadow:0 6px 18px rgba(32,64,170,.18)}
+.capsule .half{flex:1;display:flex;align-items:center;justify-content:center}
+.capsule .l{background:var(--blue);border-radius:38px 0 0 38px;color:#fff}
+.capsule .r{background:var(--card);border:1px solid var(--line);border-left:0;border-radius:0 38px 38px 0;color:var(--ink);font-weight:500}
+.capsule.recording .l{background:var(--rec)}
+.capsule.recording::after{content:"";position:absolute;inset:-6px;border-radius:44px;border:2px solid var(--rec);animation:pulse 1.4s ease-out infinite}
+.capsule.busy{opacity:.6;cursor:progress}
+.capsule:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+@keyframes pulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.08)}}
+@media (prefers-reduced-motion: reduce){.capsule.recording::after{animation:none}}
+.timer{font-variant-numeric:tabular-nums;color:var(--ink-2);height:20px;margin-top:10px}
+.status{min-height:20px;font-size:13px;color:var(--ink-2);margin-top:6px;max-width:320px}
+.status.err{color:var(--err)}
+</style>
+</head>
+<body>
+  <h1>Speak your mail</h1>
+  <button class="capsule" id="mic" aria-label="Start speaking">
+    <span class="half l"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg></span>
+    <span class="half r" id="micText">Tap to speak</span>
+  </button>
+  <div class="timer" id="timer"></div>
+  <div class="status" id="status" role="status" aria-live="polite">Tap the capsule, speak, then tap again.</div>
+<script>
+const q = new URLSearchParams(location.hash.slice(1));
+const KEY = q.get('k') || '', BASE = q.get('b') || 'https://api.groq.com/openai/v1', MODEL = q.get('m') || 'whisper-large-v3';
+history.replaceState(null, '', location.pathname);   // remove key from the address bar
+const $ = id => document.getElementById(id);
+let rec = null, stream = null, chunks = [], t0 = 0, tick = null, busy = false, ready = false;
+
+Office.onReady(() => { ready = true; });
+function send(obj){
+  const msg = JSON.stringify(obj);
+  if (ready && Office.context && Office.context.ui) Office.context.ui.messageParent(msg);
+  else setTimeout(() => send(obj), 300);
+}
+function status(t, err){ $('status').textContent = t; $('status').className = 'status' + (err ? ' err' : ''); }
+
+$('mic').onclick = () => { if (busy) return; rec && rec.state === 'recording' ? stop() : start(); };
+
+async function start(){
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ return status('Microphone blocked. In the address bar click the lock icon → Microphone → Allow, then tap again. Also check Windows Settings → Privacy → Microphone.', true); }
+  const mime = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+  rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  chunks = [];
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = done;
+  rec.start(); t0 = Date.now();
+  $('mic').classList.add('recording'); $('micText').textContent = 'Tap to stop'; $('mic').setAttribute('aria-label','Stop speaking');
+  status('Listening… Hindi, Gujarati or English.');
+  tick = setInterval(() => {
+    const s = Math.floor((Date.now()-t0)/1000);
+    $('timer').textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    if (s >= 180) stop();
+  }, 250);
+}
+function stop(){
+  clearInterval(tick);
+  if (rec && rec.state === 'recording') rec.stop();
+  stream && stream.getTracks().forEach(t => t.stop());
+  $('mic').classList.remove('recording'); $('micText').textContent = 'Tap to speak'; $('mic').setAttribute('aria-label','Start speaking');
+}
+async function done(){
+  $('timer').textContent = '';
+  if (Date.now() - t0 < 800 || !chunks.length) return status('Too short — tap and speak again.', true);
+  const type = rec.mimeType || 'audio/webm';
+  const ext = type.includes('mp4') ? 'mp4' : type.includes('ogg') ? 'ogg' : 'webm';
+  busy = true; $('mic').classList.add('busy'); status('Converting your voice to text…');
+  try {
+    const fd = new FormData();
+    fd.append('file', new Blob(chunks, { type }), 'voice.' + ext);
+    fd.append('model', MODEL);
+    const r = await fetch(BASE + '/audio/transcriptions', { method:'POST', headers:{ Authorization:'Bearer ' + KEY }, body: fd });
+    if (!r.ok) {
+      let m = ''; try { const j = await r.json(); m = j.error && j.error.message || ''; } catch(e){}
+      throw new Error(r.status === 401 ? 'API key is wrong. Check it in Settings.' : r.status === 429 ? 'Free limit reached for now. Wait a minute and try again.' : 'Voice-to-text error ' + r.status + (m ? ': ' + m : ''));
+    }
+    const text = ((await r.json()).text || '').trim();
+    if (!text) throw new Error('No speech heard. Try again closer to the mic.');
+    status('Done. Writing your mail…');
+    send({ text });
+  } catch(e) {
+    busy = false; $('mic').classList.remove('busy');
+    status(e.message || String(e), true);
+  }
+}
+</script>
+</body>
+</html>

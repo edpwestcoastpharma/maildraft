@@ -25,13 +25,13 @@ code{background:var(--card);border:1px solid var(--line);border-radius:5px;paddi
 <body>
 <main>
   <h1>WC Voice Draft</h1>
-  <p class="lead">Speak in Outlook, and ChatGPT writes the mail for you as a draft. This page gives you the file to add it to Outlook.</p>
+  <p class="lead">Speak in Outlook, and AI writes the mail for you as a draft. This page gives you the file to add it to Outlook.</p>
   <ol>
     <li><b>Download the Outlook file.</b> It is made for this website address: <code id="origin"></code><br>
       <button class="dl" id="dl">Download manifest.xml</button>
       <div class="warn" id="warn">Open this page from your hosted https:// address (Vercel or Netlify), not from your computer.</div></li>
     <li><b>Add it to Outlook.</b> Open <code>outlook.office.com</code> → open any mail → <b>Apps</b> (or ⋯ → Get Add-ins) → <b>My add-ins</b> → <b>Add a custom add-in → Add from file</b> → choose <code>manifest.xml</code>.</li>
-    <li><b>Add your OpenAI key.</b> Open any mail → click <b>Voice Draft</b> → ⚙ → paste the API key, your name and signature → Save.</li>
+    <li><b>Add your free API key.</b> Get one at <code>console.groq.com</code> → API Keys. Then open any mail → <b>WC Voice Draft</b> → ⚙ → AI service: Groq (free) → paste the key → Save. Leave Signature empty if Outlook already adds yours.</li>
     <li><b>Use it.</b> In a new mail, reply, or any received mail, click <b>Voice Draft</b>, tap the capsule, speak, tap again. The draft appears. Check it and press Send.</li>
   </ol>
   <p class="small">The add-in shows up in Outlook on the web, new Outlook for Windows and classic Outlook (same account) after a few minutes.</p>
